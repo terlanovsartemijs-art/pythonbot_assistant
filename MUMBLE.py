@@ -18,7 +18,28 @@ import re
 import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
-model = WhisperModel("small", device="cpu", compute_type="int8")
+import wave
+import pyaudio
+model =  None #WhisperModel("small", device="cpu", compute_type="int8")
+
+sys.stdout.reconfigure(encoding='utf-8')
+
+def play(filename):
+    wf = wave.open(filename, 'rb')
+    p = pyaudio.PyAudio()
+    CHUNK = 1280
+    stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                    channels=wf.getnchannels(),
+                    rate=wf.getframerate(),
+                    output=True)
+    data = wf.readframes(CHUNK)
+    while len(data) > 0:
+        stream.write(data)
+        data = wf.readframes(CHUNK)
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+
 
 # Compatibility shim: ssl.wrap_socket was removed in Python 3.13
 if not hasattr(ssl, 'wrap_socket'):
@@ -41,7 +62,9 @@ if not hasattr(ssl, 'wrap_socket'):
     ssl.wrap_socket = wrap_socket
 
 
-#dll_path = r"C:\Users\vvour\OneDrive\Desktop\opus.dll"
+#dll_path = r"C:\Users\vvour\OneDrive\Desktop\Python_client_bot\opus.dll"
+#dll_path = "/usr/lib/x86_64-linux-gnu/libopus.so"
+
 
 # Load the DLL into memory right now
 #ctypes.CDLL(dll_path)
