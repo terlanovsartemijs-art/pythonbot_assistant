@@ -46,6 +46,8 @@ import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+# --- AUTHORIZATION ---
+AUTHORIZED_USERS = ["Artemis"]  # add more names to the list as needed
 
 # --- MUMBLE CONFIG --------------------------------------------------------------------------------------------------------------------------------------------------------
 HOST = "e.tgt.lv"
@@ -72,8 +74,6 @@ DEVICES = {
     "radiator_vanna": {"topic": "079256", "relay": "POWER",  "name": "Radiator vanna"},
     #"": {"topic": "", "relay": "POWER",  "name": ""},
     #"": {"topic": "", "relay": "POWER",  "name": ""}, # add devices ass needed for yourself
-
-
 }
 
 # --- DEVICE ALIASES (used for status lookups) --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -117,7 +117,7 @@ COMMANDS = [
 ]
 
 STATUS_KEYWORDS = ["статус", "status"]
-TARIFF_KEYWORDS = ["kakoj tarif", "какой тариф", "какой тариф электричества","price"]
+TARIFF_KEYWORDS = ["kakoj tarif", "какой тариф", "какой тариф электричества","price","тариф"]
  
 # --- HELPERS -----------------------------------------------------------------------------------------------------------------------------------------------------
 def strip_html(text):
@@ -156,6 +156,9 @@ def get_username(actor_id):
     except Exception:
         return f"User#{actor_id}"
  
+def is_authorized(username):
+    return username in AUTHORIZED_USERS
+ 
 def send_mqtt(device_key, action):
     device = DEVICES[device_key]
     topic = f"cmnd/{device['topic']}/{device['relay']}"
@@ -176,7 +179,7 @@ def request_status(device_key, timeout=2.0):
     return DEVICE_STATUS.get(device_key)
  
 def get_nordpool_price():
-    """Return (price_cents_per_kwh, interval_start, interval_end) for right now, or (None, None, None)."""
+    """Return (price_cents_per_kwh, interval_start, interval_end, next_price_cents, next_start, next_end)."""
     now = datetime.now(NORDPOOL_TZ)
     date_str = now.strftime("%Y-%m-%d")
     url = "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices"
@@ -193,9 +196,10 @@ def get_nordpool_price():
         data = resp.json()
     except Exception as e:
         print(f"[NORDPOOL] Request failed: {e}")
-        return None, None, None
- 
-    for entry in data.get("multiAreaEntries", []):
+        return None, None, None, None, None, None
+
+    entries = data.get("multiAreaEntries", [])
+    for i, entry in enumerate(entries):
         try:
             start = datetime.fromisoformat(entry["deliveryStart"].replace("Z", "+00:00")).astimezone(NORDPOOL_TZ)
             end = datetime.fromisoformat(entry["deliveryEnd"].replace("Z", "+00:00")).astimezone(NORDPOOL_TZ)
@@ -206,9 +210,23 @@ def get_nordpool_price():
             if price_mwh is None:
                 continue
             price_cents = (price_mwh / 1000) * 100  # EUR/MWh -> cents/kWh
-            return price_cents, start, end
- 
-    return None, None, None
+
+            next_price_cents, next_start, next_end = None, None, None
+            if i + 1 < len(entries):
+                next_entry = entries[i + 1]
+                try:
+                    next_start = datetime.fromisoformat(next_entry["deliveryStart"].replace("Z", "+00:00")).astimezone(NORDPOOL_TZ)
+                    next_end = datetime.fromisoformat(next_entry["deliveryEnd"].replace("Z", "+00:00")).astimezone(NORDPOOL_TZ)
+                    next_price_mwh = next_entry.get("entryPerArea", {}).get(NORDPOOL_AREA)
+                    if next_price_mwh is not None:
+                        next_price_cents = (next_price_mwh / 1000) * 100
+                except Exception:
+                    pass
+
+            return price_cents, start, end, next_price_cents, next_start, next_end
+
+    return None, None, None, None, None, None
+
  
 
 
@@ -247,7 +265,7 @@ def message_callback(message):
     text_lower = text.lower()
     username = get_username(message.actor)
     print(f"[MUMBLE] {username}: {text}")
- 
+    
     channel = None
     try:
         channel = mumble.channels.find_by_name(CHANNEL)
@@ -262,14 +280,27 @@ def message_callback(message):
             except Exception as e:
                 print(f"[WARN] Could not send reply: {e}")
  
+
+    if not is_authorized(username):
+        print(f"[AUTH] Rejected command from unauthorized user: {username}")
+        reply_to_channel(f"{username}, у вас нет прав для этой команды.")
+        return
+    
+
     # 1. Tariff command
     if parse_tariff_command(text_lower):
-        price_cents, start, end = get_nordpool_price()
+        now = datetime.now()
+        minutes_left = 15 - (now.minute % 15)
+        result = f" ближайшие {minutes_left}  минут "
+        price_cents, start, end, next_price_cents, next_start, next_end = get_nordpool_price()
         if price_cents is not None:
-            reply_to_channel(
-                f"tariff (LV): {price_cents:.2f} "
-                f"({start.strftime('%H:%M')}–{end.strftime('%H:%M')})"
+            reply = (
+                f" {result}"
+                f" цена :  {price_cents:.2f} цента за киловатт час"
             )
+            if next_price_cents is not None:
+                reply += f" | следующиe 15 минут: {next_price_cents:.2f} цента за киловатт час"
+            reply_to_channel(reply)
         else:
             reply_to_channel("Could not fetch the current Nordpool tariff.")
         return
@@ -277,14 +308,17 @@ def message_callback(message):
     # 2. Status command
     status_device = parse_status_command(text_lower)
     if status_device:
+        
         device_name = DEVICES[status_device]["name"]
         state = request_status(status_device)
+        
         if state:
-            reply_to_channel(f"<b>{device_name}</b> сейчас: <b>{state}</b>")
+            state_ru = "включён" if state == "ON" else "выключен"
+            reply_to_channel(f"<b>{device_name}</b> сейчас: <b>{state_ru}</b>")
         else:
             reply_to_channel(f"Нет ответа от <b>{device_name}</b> повторите попытку скоро.")
         return
- 
+    
     # 3. ON/OFF command
     device_key, action = parse_command(text_lower)
     if device_key:
@@ -294,7 +328,7 @@ def message_callback(message):
         if current_state == action:
             state_ru = "уже включён" if action == "ON" else "уже выключен"
             reply_to_channel( 
-                f"<b>{device_name}</b> {state_ru} / already {action}"
+                f"<b>{device_name}</b> {state_ru} "
             )
         else:
             send_mqtt(device_key, action)
