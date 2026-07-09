@@ -46,8 +46,6 @@ import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-# --- AUTHORIZATION ---
-AUTHORIZED_USERS = ["Artemis"]  # add more names to the list as needed
 
 # --- MUMBLE CONFIG --------------------------------------------------------------------------------------------------------------------------------------------------------
 HOST = "e.tgt.lv"
@@ -156,8 +154,7 @@ def get_username(actor_id):
     except Exception:
         return f"User#{actor_id}"
  
-def is_authorized(username):
-    return username in AUTHORIZED_USERS
+
  
 def send_mqtt(device_key, action):
     device = DEVICES[device_key]
@@ -281,11 +278,7 @@ def message_callback(message):
                 print(f"[WARN] Could not send reply: {e}")
  
 
-    if not is_authorized(username):
-        print(f"[AUTH] Rejected command from unauthorized user: {username}")
-        reply_to_channel(f"{username}, у вас нет прав для этой команды.")
-        return
-    
+
 
     # 1. Tariff command
     if parse_tariff_command(text_lower):
