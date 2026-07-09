@@ -8,6 +8,7 @@ import ssl
 import threading
 import time
 import wave
+from pathlib import Path
 from array import array
 from struct import pack
 import numpy as np
@@ -74,7 +75,7 @@ from zoneinfo import ZoneInfo
 # --- MUMBLE CONFIG --------------------------------------------------------------------------------------------------------------------------------------------------------
 HOST = "e.tgt.lv"
 PORT = 35678                    # Standard Mumble voice port
-NAME = "помошничек"             # Change the name of the bot to anything you like
+NAME = "JansBot"             # Change the name of the bot to anything you like
 PASSWORD = "T9-SF(8gYU)"        # Server password if applicable
 CHANNEL = "Root"                # Target channel name to join
 
@@ -353,12 +354,15 @@ def process_audio(user_id):
     pcm_bytes = bytes(buffers[user_id])
     buffers[user_id].clear()
 
+    recordings_dir = Path("recordings")
+    recordings_dir.mkdir(exist_ok=True)
+
     filename = f"user_{user_id}.wav"
 
-    with wave.open(filename, "wb") as wav_file:
-        wav_file.setnchannels(1)      # mono
-        wav_file.setsampwidth(2)      # 16-bit PCM = 2 bytes
-        wav_file.setframerate(48000)  # Mumble audio rate
+    with wave.open(str(recordings_dir / filename), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(48000)
         wav_file.writeframes(pcm_bytes)
 
     print(f"Saved {filename}")
@@ -377,8 +381,18 @@ def process_audio(user_id):
     do_command(text,sender)
 
 def do_command(clean_text, username):
-#    if NAME.lower() not in clean_text.lower():
-#        return
+    if NAME.lower() not in clean_text.lower():
+        return
+
+    copy = clean_text.split()
+    for w in copy:
+        if NAME.lower() == w.lower():
+            print(NAME.lower() + " is equal to " + w.lower())
+            copy.remove(w)
+            break
+    clean_text = " ".join(copy)
+    print(clean_text)
+
 
     if not is_authorized(username,masters):
         print(f"[AUTH] Rejected command from unauthorized user: {username}")
@@ -462,7 +476,7 @@ def do_command(clean_text, username):
         ], check=True)
         return
     
-    print(f"[MUMBLE] команда не распознана  {username}")
+    print(f"{username} [MUMBLE] команда не распознана ")
 
 def add_master(filename):
     # add to file masters
