@@ -1,3 +1,7 @@
+import re
+import os
+import sys
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 import ctypes
 import ctypes.util
 import ssl
@@ -7,14 +11,12 @@ import wave
 from array import array
 from struct import pack
 import numpy as np
+from audio import play
 from tts import *
-from audio import *
 from faster_whisper import WhisperModel
 import librosa
 import pymumble_py3 as pymumble
 import paho.mqtt.client as mqtt
-import time
-import re
 import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -23,22 +25,6 @@ import pyaudio
 model =  None #WhisperModel("small", device="cpu", compute_type="int8")
 
 sys.stdout.reconfigure(encoding='utf-8')
-
-def play(filename):
-    wf = wave.open(filename, 'rb')
-    p = pyaudio.PyAudio()
-    CHUNK = 1280
-    stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                    channels=wf.getnchannels(),
-                    rate=wf.getframerate(),
-                    output=True)
-    data = wf.readframes(CHUNK)
-    while len(data) > 0:
-        stream.write(data)
-        data = wf.readframes(CHUNK)
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
 
 
 # Compatibility shim: ssl.wrap_socket was removed in Python 3.13
@@ -63,13 +49,11 @@ if not hasattr(ssl, 'wrap_socket'):
 
 
 #dll_path = r"C:\Users\vvour\OneDrive\Desktop\Python_client_bot\opus.dll"
-#dll_path = "/usr/lib/x86_64-linux-gnu/libopus.so"
 
 
 # Load the DLL into memory right now
 #ctypes.CDLL(dll_path)
-
-dll_path = "/usr/lib/x86_64-linux-gnu/libopus.so"
+dll_path = r"C:\Users\vvour\OneDrive\Desktop\Python_client_bot\opus.dll"
 ctypes.CDLL(dll_path)
 
 # Force find_library to return our path instead of searching
@@ -326,8 +310,6 @@ def message_callback(message):
     print(f"[MUMBLE] {username}: {text}")
 
 
-<<<<<<< HEAD
-=======
     # separate command logic from message_callback
     # Commands
     do_command(text,username)    
@@ -403,7 +385,6 @@ def do_command(clean_text, username):
         return
     
     text_lower = clean_text.lower()
->>>>>>> yans_features
 
     # 1. Tariff command
     if parse_tariff_command(text_lower):
