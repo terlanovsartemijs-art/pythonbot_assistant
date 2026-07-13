@@ -26,12 +26,12 @@ if not hasattr(ssl, 'wrap_socket'):
     ssl.wrap_socket = wrap_socket
 
 
-#dll_path = r"C:\Users\vvour\OneDrive\Desktop\opus.dll"
+#dll_path = r"C:\Users\vvour\OneDrive\Desktop\Python_client_bot\opus.dll"
+
 
 # Load the DLL into memory right now
 #ctypes.CDLL(dll_path)
-
-dll_path = "/usr/lib/x86_64-linux-gnu/libopus.so"
+dll_path = r"C:\Users\vvour\OneDrive\Desktop\Python_client_bot\opus.dll"
 ctypes.CDLL(dll_path)
 
 # Force find_library to return our path instead of searching

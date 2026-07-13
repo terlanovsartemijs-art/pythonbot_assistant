@@ -1,0 +1,30 @@
+#!/bin/sh /etc/rc.common
+
+# OpenWrt procd init script for MUMBLE.py
+# Install: copy to /etc/init.d/mumblebot, then chmod +x, then enable + start
+
+START=99
+STOP=10
+
+USE_PROCD=1
+
+PROG=/usr/bin/python3
+SCRIPT=/root/LightVersionNoGit/LightVersionNoGit/MUMBLE.py
+WORKDIR=/root/LightVersionNoGit/LightVersionNoGit
+
+start_service() {
+    procd_open_instance
+    # wrap in a shell so 'cd' definitely happens before python starts,
+
+    procd_set_param command /bin/sh -c "cd $WORKDIR && exec $PROG $SCRIPT"
+
+    # restart automatically if it crashes or the router reboots
+    procd_set_param respawn 3600 5 0
+    # respawn threshold(sec) retry_interval(sec) max_retries(0=infinite)
+
+    # log stdout/stderr to the system log (view with: logread)
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+
+    procd_close_instance
+}
