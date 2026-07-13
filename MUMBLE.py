@@ -1,25 +1,9 @@
-import ctypes
-import ctypes.util
-import ssl
-import threading
-import time
-import wave
-from pathlib import Path
-from array import array
-from struct import pack
-import numpy as np
-from tts import *
-from audio import *
-from faster_whisper import WhisperModel
-import librosa
-import pymumble_py3 as pymumble
-import paho.mqtt.client as mqtt
-import time
-import re
-import requests
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from command_handler import *
+load_commands("/plugins")
+print(commands)   
+
 model = WhisperModel("small", device="cpu", compute_type="int8")
+
 
 # Compatibility shim: ssl.wrap_socket was removed in Python 3.13
 if not hasattr(ssl, 'wrap_socket'):
@@ -65,12 +49,14 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 
+
 # --- MUMBLE CONFIG --------------------------------------------------------------------------------------------------------------------------------------------------------
 HOST = "e.tgt.lv"
 PORT = 35678                    # Standard Mumble voice port
-NAME = "JansBot"             # Change the name of the bot to anything you like
+NAME = ["JansBot","BotJans","Botyara","жан-бот"]             # Change the name of the bot to anything you like
 PASSWORD = "T9-SF(8gYU)"        # Server password if applicable
 CHANNEL = "Root"                # Target channel name to join
+
 
 # --- MQTT CONFIG --------------------------------------------------------------------------------------------------------------------------------------------------------
 MQTT_HOST = "10.10.0.2"
@@ -80,6 +66,7 @@ MQTT_PORT = 1883
 NORDPOOL_AREA = "LV"
 NORDPOOL_CURRENCY = "EUR"
 NORDPOOL_TZ = ZoneInfo("Europe/Riga")
+
 
 # --- DEVICES --------------------------------------------------------------------------------------------------------------------------------------------------------
 DEVICES = {
@@ -132,9 +119,6 @@ COMMANDS = [
 
 STATUS_KEYWORDS = ["статус", "status"]
 TARIFF_KEYWORDS = ["kakoj tarif", "какой тариф", "какой тариф электричества","price","тариф"]
-PARROT_KEYWORDS = ["parrot","papagailis","попугай"]
-SEND_KEYWORDS = ["send","aizsūti","отправь"]
-ADD_KEYWORDS = ["add","pievieno","добавь"]
 
 # --- HELPERS -----------------------------------------------------------------------------------------------------------------------------------------------------
 def strip_html(text):
@@ -164,12 +148,6 @@ def parse_status_command(text_lower):
         return find_device_by_alias(text_lower)
     return None
  
-def parse_tariff_command(text_lower):
-    return any(kw in text_lower for kw in TARIFF_KEYWORDS)
-
-def parse_parrot_command(text_lower):
-    return any(kw in text_lower for kw in PARROT_KEYWORDS)
-
 def get_username(actor_id):
     try:
         return mumble.users[actor_id]["name"]
@@ -199,7 +177,54 @@ def request_status(device_key, timeout=2.0):
             return DEVICE_STATUS[device_key]
         time.sleep(0.1)
     return DEVICE_STATUS.get(device_key)
- 
+def get_nordpool_price():
+    """Return (price_cents_per_kwh, interval_start, interval_end, next_price_cents, next_start, next_end)."""
+    now = datetime.now(NORDPOOL_TZ)
+    date_str = now.strftime("%Y-%m-%d")
+    url = "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices"
+    params = {
+        "date": date_str,
+        "market": "DayAhead",
+        "deliveryArea": NORDPOOL_AREA,
+        "currency": NORDPOOL_CURRENCY,
+    }
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        print(f"[NORDPOOL] Request failed: {e}")
+        return None, None, None, None, None, None
+
+    entries = data.get("multiAreaEntries", [])
+    for i, entry in enumerate(entries):
+        try:
+            start = datetime.fromisoformat(entry["deliveryStart"].replace("Z", "+00:00")).astimezone(NORDPOOL_TZ)
+            end = datetime.fromisoformat(entry["deliveryEnd"].replace("Z", "+00:00")).astimezone(NORDPOOL_TZ)
+        except Exception:
+            continue
+        if start <= now < end:
+            price_mwh = entry.get("entryPerArea", {}).get(NORDPOOL_AREA)
+            if price_mwh is None:
+                continue
+            price_cents = (price_mwh / 1000) * 100  # EUR/MWh -> cents/kWh
+
+            next_price_cents, next_start, next_end = None, None, None
+            if i + 1 < len(entries):
+                next_entry = entries[i + 1]
+                try:
+                    next_start = datetime.fromisoformat(next_entry["deliveryStart"].replace("Z", "+00:00")).astimezone(NORDPOOL_TZ)
+                    next_end = datetime.fromisoformat(next_entry["deliveryEnd"].replace("Z", "+00:00")).astimezone(NORDPOOL_TZ)
+                    next_price_mwh = next_entry.get("entryPerArea", {}).get(NORDPOOL_AREA)
+                    if next_price_mwh is not None:
+                        next_price_cents = (next_price_mwh / 1000) * 100
+                except Exception:
+                    pass
+
+            return price_cents, start, end, next_price_cents, next_start, next_end
+
+    return None, None, None, None, None, None 
 def get_nordpool_price():
     """Return (price_cents_per_kwh, interval_start, interval_end, next_price_cents, next_start, next_end)."""
     now = datetime.now(NORDPOOL_TZ)
@@ -308,17 +333,17 @@ def message_callback(message):
     # Commands
     do_command(text,username)    
 
-# Integrate wakeword
+# Turned off right now
 def audio_callback(user, soundchunk):
     """Triggered continuously when a user is speaking in the channel"""
     # soundchunk.pcm contains the raw 16-bit 48kHz stereo/mono PCM audio bytes
-    user_id = user["session"]
+    #user_id = user["session"]
 
-    if user_id not in buffers:
-        buffers[user_id] = bytearray()
+    #if user_id not in buffers:
+    #    buffers[user_id] = bytearray()
 
-    buffers[user_id].extend(soundchunk.pcm)
-    last_audio[user_id] = time.time()
+    #buffers[user_id].extend(soundchunk.pcm)
+    #last_audio[user_id] = time.time()
 
     #print(f"Listening to user  {user['name']}: {len(soundchunk.pcm)} bytes of audio data")
     # You can pass soundchunk.pcm into an STT engine or save it here
@@ -374,42 +399,42 @@ def process_audio(user_id):
     do_command(text,sender)
 
 def do_command(clean_text, username):
-    if NAME.lower() not in clean_text.lower():
+    # check for bot names in text
+    name_in_text = 0
+    found_name = ""
+    for name_variant in NAME:
+        if name_variant.lower() in clean_text.lower():
+            name_in_text = 1
+            found_name = name_variant
+            break
+    if(not name_in_text):
         return
 
     copy = clean_text.split()
     for w in copy:
-        if NAME.lower() == w.lower():
-            print(NAME.lower() + " is equal to " + w.lower())
+        if found_name.lower() == w.lower():
+            print(found_name.lower() + " is equal to " + w.lower())
             copy.remove(w)
             break
     clean_text = " ".join(copy)
     print(clean_text)
 
-
+    # check if user is one of masters
     if not is_authorized(username,masters):
+        reply_to_channel(f"{username} you are not my master !")
         print(f"[AUTH] Rejected command from unauthorized user: {username}")
         return
     
     text_lower = clean_text.lower()
 
-    # 1. Tariff command
-    if parse_tariff_command(text_lower):
-        now = datetime.now()
-        minutes_left = 15 - (now.minute % 15)
-        result = f" ближайшие {minutes_left}  минут "
-        price_cents, start, end, next_price_cents, next_start, next_end = get_nordpool_price()
-        if price_cents is not None:
-            reply = (
-                f" {result}"
-                f" цена :  {price_cents:.2f} цента за киловатт час"
-            )
-            if next_price_cents is not None:
-                reply += f" | следующиe 15 минут: {next_price_cents:.2f} цента за киловатт час"
-            reply_to_channel(reply)
-        else:
-            reply_to_channel("Could not fetch the current Nordpool tariff.")
-        return
+    # important information that might be used in commands.
+    context = {
+        "mumble_setting" : [HOST,PORT,NAME,PASSWORD,CHANNEL],
+        "mumble" : mumble,
+        "mqtt" : mqtt,
+        "mqtt_settings" : [MQTT_HOST,MQTT_PORT],
+        "nordpool_config" : [NORDPOOL_AREA,NORDPOOL_CURRENCY,NORDPOOL_TZ]
+    }
  
     # 2. Status command
     status_device = parse_status_command(text_lower)
@@ -444,30 +469,13 @@ def do_command(clean_text, username):
             )
         return
  
-    # 4. Parrot command
+    # Plugin commands
     command,_,text_copy = clean_text.partition(" ")
     command = command.lower()
-    if command in PARROT_KEYWORDS:
-        mumble.channels.find_by_name(CHANNEL).send_text_message(text_copy)
-        # rn it voices locally on the device where bot is living
-        print(text_copy)
-        voice(text_copy, "ru")  # Add language recognition
-        play("output.wav")       # Plays localy ! On device !
-        return
 
-    # 5. Send command
-    if command in SEND_KEYWORDS:
-        group,_,text_copy = text_copy.partition(" ")
-        # Add edge case when group or text is empty
-        # Add edge case when no group with such name is found
-        subprocess.run([
-            "curl",
-            "-X", "PUT",
-            "-H", "Content-Type: text/plain",
-            "--data", text_copy,
-            f"https://rekini.tgt.lv/{group}",
-        ], check=True)
-        return
+    if command in commands:
+        commands[command](text_copy,context)
+        return    
     
     print(f"{username} [MUMBLE] команда не распознана ")
 
@@ -480,7 +488,7 @@ def rm_master(filename):
     print()
 
 # 1. Initialize the Mumble client
-mumble = pymumble.Mumble(HOST, NAME, port=PORT, password=PASSWORD)
+mumble = pymumble.Mumble(HOST, NAME[0], port=PORT, password=PASSWORD)
 
 # 2. Set up event listeners for text messages and incoming audio streams
 mumble.callbacks.set_callback(pymumble.constants.PYMUMBLE_CLBK_TEXTMESSAGERECEIVED, message_callback)
