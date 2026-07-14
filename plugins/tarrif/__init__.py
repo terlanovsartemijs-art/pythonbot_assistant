@@ -1,6 +1,11 @@
 from command_handler import *
 
-def get_nordpool_price(NORDPOOL_AREA,NORDPOOL_CURRENCY,NORDPOOL_TZ):
+# --- NORDPOOL CONFIG --------------------------------------------------------------------------------------------------------------------------------------------------------
+NORDPOOL_AREA = "LV"
+NORDPOOL_CURRENCY = "EUR"
+NORDPOOL_TZ = ZoneInfo("Europe/Riga")
+
+def get_nordpool_price():
     """Return (price_cents_per_kwh, interval_start, interval_end, next_price_cents, next_start, next_end)."""
     now = datetime.now(NORDPOOL_TZ)
     date_str = now.strftime("%Y-%m-%d")
@@ -54,6 +59,7 @@ def tarif(text,context):
     minutes_left = 15 - (now.minute % 15)
     result = f" ближайшие {minutes_left}  минут "
     price_cents, start, end, next_price_cents, next_start, next_end = get_nordpool_price(context["nordpool_config"][0],context["nordpool_config"][1],context["nordpool_config"][2])
+    price_cents, start, end, next_price_cents, next_start, next_end = get_nordpool_price(context["nordpool_config"][0],context["nordpool_config"][1],context["nordpool_config"][2])
     if price_cents is not None:
         reply = (
             f" {result}"
@@ -67,7 +73,6 @@ def tarif(text,context):
         "Could not fetch the current Nordpool tariff."
         )
     return
-
 
 def register(register_command):
     root = Path(__file__).parent / "config.txt"

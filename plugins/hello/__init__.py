@@ -1,8 +1,7 @@
 from command_handler import *
 
-
-def hello():
-    print("Hello")
+def hello(text,context):
+    reply_to_channel("Guten Aben !",context)
 
 def register(register_command):
     root = Path(__file__).parent / "config.txt"

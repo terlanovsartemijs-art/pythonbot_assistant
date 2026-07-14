@@ -2,7 +2,8 @@ from command_handler import *
 
 def parrot(text,context):
     print(text)
-    context["mumble"].channels.find_by_name(context["mumble_setting"][4]).send_text_message(text)
+    context["mumble"].channels.find_by_name(context["mumble_settings"][4]).send_text_message(text)
+    reply_to_channel(text,context)
 
 
 def register(register_command):
