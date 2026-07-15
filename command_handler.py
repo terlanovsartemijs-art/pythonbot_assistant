@@ -21,6 +21,7 @@ import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import importlib
+import requests
 commands = {}
 
 PLUGINS_FOLDER = "plugins"
@@ -59,3 +60,12 @@ def reply_to_channel(msg,context):
             channel.send_text_message(msg)
         except Exception as e:
             print(f"[WARN] Could not send reply: {e}")
+
+def identify_lang(text):
+    text = text.lower()
+    if any('\u0400' <= ch <= '\u04FF' for ch in text):
+        return "ru"
+    if any(ch in ["ā", "ē", "ī", "ū", "č", "š", "ž", "ģ", "ķ", "ļ", "ņ"] for ch in text):
+        return "lv"
+    #if couldn't identify lang, use english
+    return "en"

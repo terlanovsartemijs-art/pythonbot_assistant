@@ -75,7 +75,7 @@ def tarif(text,context):
     return
 
 def register(register_command):
-    root = Path(__file__).parent / "config.txt"
+    root = Path(__file__).parent / "config"
     with open(root,"r") as fp:
         for line in fp:
             register_command(f"{line.strip()}",tarif)

@@ -3,7 +3,7 @@ load_commands()
 reload_plugin("parrot")
 print(commands)   
 
-model = WhisperModel("small", device="cpu", compute_type="int8")
+#model = WhisperModel("small", device="cpu", compute_type="int8")
 
 
 # Compatibility shim: ssl.wrap_socket was removed in Python 3.13
@@ -27,8 +27,9 @@ if not hasattr(ssl, 'wrap_socket'):
     ssl.wrap_socket = wrap_socket
 
 # Load the DLL into memory right now
+print("Loading DLL into memory...")
 #ctypes.CDLL(dll_path)
-dll_path = "/usr/lib/x86_64-linux-gnu/libopus.so"
+dll_path = "/usr/lib/x86_64-linux-gnu/libopus.so.0"
 ctypes.CDLL(dll_path)
 
 # Force find_library to return our path instead of searching
