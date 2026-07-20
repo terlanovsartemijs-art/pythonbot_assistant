@@ -1,10 +1,11 @@
 from command_handler import *
 load_commands()
 reload_plugin("parrot")
-print(commands)   
+for command in commands:
+    print(f"{command} | {commands[command]}")
 
 #model = WhisperModel("small", device="cpu", compute_type="int8")
-
+model = ""
 
 # Compatibility shim: ssl.wrap_socket was removed in Python 3.13
 if not hasattr(ssl, 'wrap_socket'):
@@ -43,7 +44,7 @@ ctypes.util.find_library = _patched_find_library
 # --- MUMBLE CONFIG --------------------------------------------------------------------------------------------------------------------------------------------------------
 HOST = "e.tgt.lv"
 PORT = 35678                    # Standard Mumble voice port
-NAME = ["JansBot","BotJans","Botyara","жан-бот"]             # Change the name of the bot to anything you like
+NAME = ["JansBot","BotJans","Botyara","жан-бот","бот","bot"]             # Change the name of the bot to anything you like
 PASSWORD = "T9-SF(8gYU)"        # Server password if applicable
 CHANNEL = "Root"                # Target channel name to join
  
@@ -189,6 +190,14 @@ def do_command(clean_text, username):
     if clean_text.lower() in commands:
         commands[clean_text.lower()](clean_text,context)
         return
+
+    for command in commands:
+        if command in clean_text.lower():
+            _,_,text_copy = clean_text.partition(command)
+            print(f"Found command : {command}")
+            print(f"Text : {text_copy}")
+            commands[command.lower()](text_copy,context)
+            return
 
     command,_,text_copy = clean_text.partition(" ")
     command = command.lower()

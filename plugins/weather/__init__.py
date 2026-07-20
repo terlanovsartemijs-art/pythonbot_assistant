@@ -25,7 +25,7 @@ def weather(text,context):
     response = requests.get(
         "https://geocoding-api.open-meteo.com/v1/search",
         params={
-            "name": city,
+            "name": city.strip(),
             "count": 1,
             "language": language
         }
@@ -109,12 +109,12 @@ def weather(text,context):
 
     # Process current data. The order of variables needs to be the same as requested.
     current = response.Current()
-    current_temperature_2m = round(current.Variables(0).Value(),1)
-    current_apparent_temperature = round(current.Variables(1).Value(),1)
-    current_wind_speed_10m = round(current.Variables(2).Value(),1)
-    current_relative_humidity_2m = round(current.Variables(3).Value(),1)
-    current_rain = round(current.Variables(4).Value(),1)
-    current_snowfall = round(current.Variables(5).Value(),1) 
+    current_temperature_2m = round(current.Variables(0).Value())
+    current_apparent_temperature = round(current.Variables(1).Value())
+    current_wind_speed_10m = round(current.Variables(2).Value())
+    current_relative_humidity_2m = round(current.Variables(3).Value())
+    current_rain = round(current.Variables(4).Value())
+    current_snowfall = round(current.Variables(5).Value()) 
     labels = {
         "en": {
             "temp": "Temperature",
@@ -146,7 +146,7 @@ def weather(text,context):
 
     message = (
         f"{l['temp']}: {current_temperature_2m}\n"
-        f"{l['feels']}: {current_apparent_temperature}\n"
+        #f"{l['feels']}: {current_apparent_temperature}\n"
         f"{l['wind']}: {current_wind_speed_10m}\n"
         f"{l['humidity']}: {current_relative_humidity_2m}\n"
         f"{l['rain']}: {current_rain}\n"

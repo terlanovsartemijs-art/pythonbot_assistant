@@ -1,5 +1,5 @@
 librosa==0.11.0
-numpy==2.5.1
+numpy>=2.0,<2.4
 openmeteo_requests==1.7.5
 paho_mqtt==2.1.0
 pandas==3.0.3
